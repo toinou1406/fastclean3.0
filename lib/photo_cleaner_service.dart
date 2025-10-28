@@ -1,0 +1,152 @@
+import 'package:photo_manager/photo_manager.dart';
+import 'photo_analyzer.dart';
+
+class PhotoResult {
+  final AssetEntity asset;
+  final double score;
+  final String hash;
+  final String perceptualHash;
+  
+  PhotoResult(this.asset, this.score, this.hash, this.perceptualHash);
+}
+
+class PhotoCleanerService {
+  final PhotoAnalyzer _analyzer = PhotoAnalyzer();
+  final List<PhotoResult> _allPhotos = [];
+  
+  // SCANNER TOUTES LES PHOTOS
+  Future<void> scanPhotos() async {
+    // Demander permission
+    final permission = await PhotoManager.requestPermissionExtend();
+    if (!permission.isAuth) {
+      throw Exception('Permission refusée');
+    }
+    
+    // Récupérer toutes les photos
+    final albums = await PhotoManager.getAssetPathList(
+      type: RequestType.image,
+    );
+    
+    if (albums.isEmpty) return;
+    
+    final recentAlbum = albums.first;
+    final photos = await recentAlbum.getAssetListRange(
+      start: 0,
+      end: 10000, // Maximum 10k photos
+    );
+    
+    _allPhotos.clear();
+    
+    // Analyser chaque photo (en parallèle par batch de 10)
+    for (int i = 0; i < photos.length; i += 10) {
+      final batch = photos.skip(i).take(10).toList();
+      final results = await Future.wait(
+        batch.map((photo) => _analyzePhoto(photo))
+      );
+      _allPhotos.addAll(results.whereType<PhotoResult>());
+    }
+  }
+  
+  Future<PhotoResult?> _analyzePhoto(AssetEntity asset) async {
+    try {
+      final file = await asset.file;
+      if (file == null) return null;
+      
+      // Analyser la photo
+      final score = await _analyzer.analyzePhoto(file, asset.createDateTime);
+      final hash = await _analyzer.calculateHash(file);
+      final pHash = await _analyzer.calculatePerceptualHash(file);
+      
+      return PhotoResult(asset, score, hash, pHash);
+    } catch (e) {
+      // Gérer l'erreur silencieusement
+      return null;
+    }
+  }
+  
+  // SÉLECTIONNER LES 9 PHOTOS À SUPPRIMER
+  Future<List<PhotoResult>> selectPhotosToDelete() async {
+    List<PhotoResult> candidates = List.from(_allPhotos);
+    
+    // 1. MARQUER LES DOUBLONS EXACTS (hash MD5 identique)
+    Map<String, List<PhotoResult>> hashGroups = {};
+    for (var photo in candidates) {
+      hashGroups.putIfAbsent(photo.hash, () => []).add(photo);
+    }
+    
+    for (var group in hashGroups.values) {
+      if (group.length > 1) {
+        // Garder la première, marquer les autres comme doublons
+        for (int i = 1; i < group.length; i++) {
+          group[i] = PhotoResult(
+            group[i].asset,
+            100.0, // Score maximum pour doublon
+            group[i].hash,
+            group[i].perceptualHash,
+          );
+        }
+      }
+    }
+    
+    // 2. DÉTECTER LES PHOTOS SIMILAIRES (pHash proche)
+    for (int i = 0; i < candidates.length; i++) {
+      for (int j = i + 1; j < candidates.length; j++) {
+        final distance = _analyzer.hammingDistance(
+          candidates[i].perceptualHash,
+          candidates[j].perceptualHash,
+        );
+        
+        // Si très similaires (distance < 5 bits)
+        if (distance < 5) {
+          // Augmenter le score de celle qui a déjà le score le plus élevé
+          if (candidates[i].score >= candidates[j].score) {
+            candidates[i] = PhotoResult(
+              candidates[i].asset,
+              candidates[i].score + 80.0,
+              candidates[i].hash,
+              candidates[i].perceptualHash,
+            );
+          } else {
+            candidates[j] = PhotoResult(
+              candidates[j].asset,
+              candidates[j].score + 80.0,
+              candidates[j].hash,
+              candidates[j].perceptualHash,
+            );
+          }
+        }
+      }
+    }
+    
+    // 3. TRIER PAR SCORE ET RETOURNER LES 9 PIRES
+    candidates.sort((a, b) => b.score.compareTo(a.score));
+    return candidates.take(9).toList();
+  }
+  
+  // SUPPRIMER LES PHOTOS SÉLECTIONNÉES
+  Future<void> deletePhotos(List<PhotoResult> photos) async {
+    final ids = photos.map((p) => p.asset.id).toList();
+    await PhotoManager.editor.deleteWithIds(ids);
+  }
+  
+  // OBTENIR L'ESPACE DE STOCKAGE
+  Future<StorageInfo> getStorageInfo() async {
+    // Cette fonction nécessite un plugin natif
+    // Pour simplifier, retourner des valeurs fictives
+    return StorageInfo(
+      totalSpace: 128 * 1024 * 1024 * 1024, // 128 GB
+      usedSpace: 85 * 1024 * 1024 * 1024,   // 85 GB
+    );
+  }
+}
+
+class StorageInfo {
+  final int totalSpace;
+  final int usedSpace;
+  
+  StorageInfo({required this.totalSpace, required this.usedSpace});
+  
+  double get usedPercentage => (usedSpace / totalSpace) * 100;
+  String get usedSpaceGB => '${(usedSpace / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  String get totalSpaceGB => '${(totalSpace / (1024 * 1024 * 1024)).toStringAsFixed(0)} GB';
+}
