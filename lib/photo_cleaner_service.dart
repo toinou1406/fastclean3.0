@@ -21,7 +21,7 @@ class PhotoCleanerService {
   Future<void> scanPhotos() async {
     // Demander permission
     final permission = await PhotoManager.requestPermissionExtend();
-    if (!permission.isAuth) {
+    if (!permission.hasAccess) {
       throw Exception('Full photo access permission is required to scan photos.');
     }
 
