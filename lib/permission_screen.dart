@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class PermissionScreen extends StatefulWidget {
@@ -82,7 +81,7 @@ class _PermissionScreenState extends State<PermissionScreen>
             fit: BoxFit.cover,
             opacity: 0.05,
             colorFilter: ColorFilter.mode(
-                theme.colorScheme.primary.withOpacity(0.1), BlendMode.colorBurn),
+                theme.colorScheme.primary.withAlpha(25), BlendMode.colorBurn),
           ),
         ),
         child: Center(
@@ -99,7 +98,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                     Icon(
                       Icons.shield_moon_outlined,
                       size: 100,
-                      color: theme.colorScheme.primary.withOpacity(0.8),
+                      color: theme.colorScheme.primary.withAlpha(204),
                     ),
                     const SizedBox(height: 32),
                     Text(
@@ -112,7 +111,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                       'Our AI needs your permission to scan your gallery. It will find blurry, duplicate, and unwanted photos for you to delete.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        color: theme.colorScheme.onSurface.withAlpha(178),
                         height: 1.5,
                       ),
                     ),
@@ -134,9 +133,9 @@ class _PermissionScreenState extends State<PermissionScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.1),
+        color: theme.colorScheme.primary.withAlpha(25),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3)),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(76)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
