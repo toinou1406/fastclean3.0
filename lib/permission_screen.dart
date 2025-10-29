@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 class PermissionScreen extends StatefulWidget {
   final VoidCallback onPermissionGranted;
@@ -47,7 +46,7 @@ class _PermissionScreenState extends State<PermissionScreen>
 
     final result = await PhotoManager.requestPermissionExtend();
 
-    if (result.isAuth) {
+    if (result.hasAccess) {
       widget.onPermissionGranted();
     } else {
       if (mounted) {
@@ -58,7 +57,7 @@ class _PermissionScreenState extends State<PermissionScreen>
             action: SnackBarAction(
               label: 'Settings',
               onPressed: () {
-                openAppSettings();
+                PhotoManager.openSetting();
               },
             ),
           ),

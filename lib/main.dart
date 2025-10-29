@@ -2,7 +2,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'photo_cleaner_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'permission_screen.dart';
@@ -75,10 +74,10 @@ class _AppFlowState extends State<AppFlow> {
   }
 
   Future<void> _checkPermissionStatus() async {
-    final status = await Permission.photos.status;
+    final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (mounted) {
       setState(() {
-        _hasPermission = status.isGranted;
+        _hasPermission = ps.hasAccess;
         _isCheckingPermission = false;
       });
     }
