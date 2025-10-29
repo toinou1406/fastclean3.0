@@ -1,5 +1,5 @@
 import 'package:photo_manager/photo_manager.dart';
-import 'package:disk_space/disk_space.dart';
+import 'package:disk_space_plus/disk_space_plus.dart';
 import 'photo_analyzer.dart';
 
 class PhotoResult {
@@ -13,6 +13,7 @@ class PhotoResult {
 
 class PhotoCleanerService {
   final PhotoAnalyzer _analyzer = PhotoAnalyzer();
+  final DiskSpacePlus _diskSpace = DiskSpacePlus();
   final List<PhotoResult> _allPhotos = [];
   final Set<String> _seenPhotoIds = {};
 
@@ -139,12 +140,8 @@ class PhotoCleanerService {
 
   // OBTENIR L'ESPACE DE STOCKAGE
   Future<StorageInfo> getStorageInfo() async {
-    final double? total = await DiskSpace.getTotalDiskSpace;
-    final double? free = await DiskSpace.getFreeDiskSpace;
-
-    if (total == null || free == null) {
-      return StorageInfo(totalSpace: 0, usedSpace: 0);
-    }
+    final double total = await _diskSpace.getTotalDiskSpace ?? 0.0;
+    final double free = await _diskSpace.getFreeDiskSpace ?? 0.0;
 
     final int totalSpace = total.toInt() * 1024 * 1024;
     final int usedSpace = (total - free).toInt() * 1024 * 1024;
@@ -162,7 +159,7 @@ class StorageInfo {
 
   StorageInfo({required this.totalSpace, required this.usedSpace});
 
-  double get usedPercentage => (usedSpace / totalSpace) * 100;
+  double get usedPercentage => totalSpace > 0 ? (usedSpace / totalSpace) * 100 : 0;
   String get usedSpaceGB => '${(usedSpace / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   String get totalSpaceGB => '${(totalSpace / (1024 * 1024 * 1024)).toStringAsFixed(0)} GB';
 }

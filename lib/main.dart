@@ -7,7 +7,6 @@ import 'photo_cleaner_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'permission_screen.dart';
 import 'full_screen_image_view.dart';
-import 'dart:math' as math;
 
 void main() {
   runApp(const MyApp());
@@ -440,7 +439,7 @@ class _PhotoCardState extends State<PhotoCard> with SingleTickerProviderStateMix
         },
         child: Card(
           elevation: 8,
-          shadowColor: Colors.black.withOpacity(0.5),
+          shadowColor: Colors.black.withAlpha(128),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -467,7 +466,7 @@ class _PhotoCardState extends State<PhotoCard> with SingleTickerProviderStateMix
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
+                    color: Colors.black.withAlpha(153),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text('${widget.photo.score.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -498,7 +497,7 @@ class ActionButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: backgroundColor ?? Theme.of(context).colorScheme.primary,
         minimumSize: const Size(double.infinity, 60),
-        shadowColor: (backgroundColor ?? Theme.of(context).colorScheme.primary).withOpacity(0.5),
+        shadowColor: (backgroundColor ?? Theme.of(context).colorScheme.primary).withAlpha(128),
         elevation: 8,
       ),
     );
@@ -532,7 +531,7 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.photo_library, size: 100, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
+          Icon(Icons.photo_library, size: 100, color: Theme.of(context).colorScheme.primary.withAlpha(178)),
           const SizedBox(height: 24),
           Text('Press "Sort" to Begin', style: Theme.of(context).textTheme.displaySmall),
           const SizedBox(height: 8),
