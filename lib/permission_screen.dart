@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class PermissionScreen extends StatefulWidget {
   final VoidCallback onPermissionGranted;
@@ -11,101 +13,174 @@ class PermissionScreen extends StatefulWidget {
   State<PermissionScreen> createState() => _PermissionScreenState();
 }
 
-class _PermissionScreenState extends State<PermissionScreen> {
+class _PermissionScreenState extends State<PermissionScreen>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = false;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnimation =
+        CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
+    _slideAnimation = Tween<Offset>(
+            begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _animationController, curve: Curves.easeInOutCubic));
+    
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   Future<void> _requestPermission() async {
     setState(() => _isLoading = true);
 
-    final state = await PhotoManager.requestPermissionExtend();
+    final result = await PhotoManager.requestPermissionExtend();
 
-    if (state.isAuth) {
+    if (result.isAuth) {
       widget.onPermissionGranted();
     } else {
       if (mounted) {
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permission is required to use this app.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: const Text('Full photo access is required to use this app.'),
+            backgroundColor: Colors.red.shade700,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () {
+                openAppSettings();
+              },
+            ),
           ),
         );
+        setState(() => _isLoading = false);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
           image: DecorationImage(
-            image: AssetImage("assets/images/noise.png"),
+            image: const AssetImage("assets/images/noise.png"),
             fit: BoxFit.cover,
             opacity: 0.05,
+            colorFilter: ColorFilter.mode(
+                theme.colorScheme.primary.withOpacity(0.1), BlendMode.colorBurn),
           ),
         ),
         child: Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.photo_album_outlined,
-                  size: 120,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Welcome to AI Photo Cleaner',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.oswald(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'This app needs access to your photo gallery to help you find and delete unwanted photos.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Row(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(Icons.lock, color: Colors.green, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'All processing is done locally on your device.',
-                       style: TextStyle(fontSize: 14, color: Colors.white70),
+                    Icon(
+                      Icons.shield_moon_outlined,
+                      size: 100,
+                      color: theme.colorScheme.primary.withOpacity(0.8),
                     ),
+                    const SizedBox(height: 32),
+                    Text(
+                      'Grant Photo Access',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.displayLarge?.copyWith(fontSize: 32),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Our AI needs your permission to scan your gallery. It will find blurry, duplicate, and unwanted photos for you to delete.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _buildPrivacyChip(theme),
+                    const SizedBox(height: 48),
+                    _buildActionButton(theme),
                   ],
                 ),
-                const SizedBox(height: 48),
-                _isLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton.icon(
-                        icon: const Icon(Icons.lock_open),
-                        label: const Text('Grant Access'),
-                        onPressed: _requestPermission,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          textStyle: GoogleFonts.roboto(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-              ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPrivacyChip(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_user_outlined,
+              color: theme.colorScheme.primary, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            '100% Private & Secure',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.primary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(ThemeData theme) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, animation) {
+        return ScaleTransition(scale: animation, child: child);
+      },
+      child: _isLoading
+          ? CircularProgressIndicator(
+              key: const ValueKey('loader'),
+              color: theme.colorScheme.primary,
+            )
+          : SizedBox(
+              key: const ValueKey('button'),
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.lock_open_rounded),
+                label: const Text('Grant Full Access'),
+                onPressed: _requestPermission,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: theme.textTheme.labelLarge,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
