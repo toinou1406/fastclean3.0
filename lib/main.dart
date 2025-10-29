@@ -65,18 +65,22 @@ class AppFlow extends StatefulWidget {
 
 class _AppFlowState extends State<AppFlow> {
   bool _hasPermission = false;
+  bool _isCheckingPermission = true;
 
   @override
   void initState() {
     super.initState();
-    _checkPermission();
+    _checkPermissionStatus();
   }
 
-  Future<void> _checkPermission() async {
-    final ps = await PhotoManager.requestPermissionExtend();
-    setState(() {
-      _hasPermission = ps.isAuth;
-    });
+  Future<void> _checkPermissionStatus() async {
+    final ps = await PhotoManager.permissionState;
+    if (mounted) {
+      setState(() {
+        _hasPermission = ps.isAuth;
+        _isCheckingPermission = false;
+      });
+    }
   }
 
   void _onPermissionGranted() {
@@ -87,6 +91,14 @@ class _AppFlowState extends State<AppFlow> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingPermission) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
     return _hasPermission
         ? const HomeScreen()
         : PermissionScreen(onPermissionGranted: _onPermissionGranted);
