@@ -22,7 +22,7 @@ class PhotoCleanerService {
     // Demander permission
     final permission = await PhotoManager.requestPermissionExtend();
     if (!permission.isAuth) {
-      throw Exception('Permission refusée');
+      throw Exception('Full photo access permission is required to scan photos.');
     }
 
     // Récupérer toutes les photos
