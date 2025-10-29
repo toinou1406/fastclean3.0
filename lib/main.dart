@@ -1,7 +1,11 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'photo_cleaner_service.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'permission_screen.dart';
+import 'full_screen_image_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -47,8 +51,45 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Photo Cleaner',
       theme: theme,
-      home: const HomeScreen(),
+      home: const AppFlow(),
     );
+  }
+}
+
+class AppFlow extends StatefulWidget {
+  const AppFlow({super.key});
+
+  @override
+  State<AppFlow> createState() => _AppFlowState();
+}
+
+class _AppFlowState extends State<AppFlow> {
+  bool _hasPermission = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    var status = await Permission.photos.status;
+    setState(() {
+      _hasPermission = status.isGranted;
+    });
+  }
+
+  void _onPermissionGranted() {
+    setState(() {
+      _hasPermission = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _hasPermission
+        ? const HomeScreen()
+        : PermissionScreen(onPermissionGranted: _onPermissionGranted);
   }
 }
 
@@ -166,13 +207,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage("assets/images/noise.png"),
-            fit: BoxFit.cover, 
-            opacity: 0.05,
-          ),
-        ),
+        decoration: Platform.environment.containsKey('FLUTTER_TEST')
+            ? null
+            : const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage("assets/images/noise.png"),
+                  fit: BoxFit.cover, 
+                  opacity: 0.05,
+                ),
+              ),
         child: SafeArea(
           child: Column(
             children: [
@@ -275,7 +318,7 @@ class StorageIndicator extends StatelessWidget {
           child: LinearProgressIndicator(
             value: storageInfo.usedPercentage / 100,
             minHeight: 12,
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             valueColor: AlwaysStoppedAnimation<Color>(
               storageInfo.usedPercentage > 80 ? Colors.red.shade400 : Theme.of(context).colorScheme.primary,
             ),
@@ -292,36 +335,46 @@ class PhotoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 8,
-      shadowColor: Colors.black.withOpacity(0.5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          FutureBuilder(
-            future: photo.asset.thumbnailDataWithSize(const ThumbnailSize(300, 300)),
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return Image.memory(snapshot.data!, fit: BoxFit.cover);
-              }
-              return const Center(child: CircularProgressIndicator());
-            },
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FullScreenImageView(asset: photo.asset),
           ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('${photo.score.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        );
+      },
+      child: Card(
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FutureBuilder(
+              future: photo.asset.thumbnailDataWithSize(const ThumbnailSize(300, 300)),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                }
+                return const Center(child: CircularProgressIndicator());
+              },
             ),
-          ),
-        ],
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('${photo.score.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

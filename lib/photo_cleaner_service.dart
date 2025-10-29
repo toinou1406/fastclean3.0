@@ -1,4 +1,5 @@
 import 'package:photo_manager/photo_manager.dart';
+import 'package:disk_space/disk_space.dart';
 import 'photo_analyzer.dart';
 
 class PhotoResult {
@@ -131,11 +132,19 @@ class PhotoCleanerService {
   
   // OBTENIR L'ESPACE DE STOCKAGE
   Future<StorageInfo> getStorageInfo() async {
-    // Cette fonction nécessite un plugin natif
-    // Pour simplifier, retourner des valeurs fictives
+    final double? total = await DiskSpace.getTotalDiskSpace;
+    final double? free = await DiskSpace.getFreeDiskSpace;
+
+    if (total == null || free == null) {
+      return StorageInfo(totalSpace: 0, usedSpace: 0);
+    }
+
+    final int totalSpace = total.toInt() * 1024 * 1024; 
+    final int usedSpace = (total - free).toInt() * 1024 * 1024;
+
     return StorageInfo(
-      totalSpace: 128 * 1024 * 1024 * 1024, // 128 GB
-      usedSpace: 85 * 1024 * 1024 * 1024,   // 85 GB
+      totalSpace: totalSpace,
+      usedSpace: usedSpace,
     );
   }
 }
