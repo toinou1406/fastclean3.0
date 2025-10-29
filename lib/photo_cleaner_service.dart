@@ -7,14 +7,15 @@ class PhotoResult {
   final double score;
   final String hash;
   final String perceptualHash;
-  
+
   PhotoResult(this.asset, this.score, this.hash, this.perceptualHash);
 }
 
 class PhotoCleanerService {
   final PhotoAnalyzer _analyzer = PhotoAnalyzer();
   final List<PhotoResult> _allPhotos = [];
-  
+  final Set<String> _seenPhotoIds = {};
+
   // SCANNER TOUTES LES PHOTOS
   Future<void> scanPhotos() async {
     // Demander permission
@@ -22,22 +23,22 @@ class PhotoCleanerService {
     if (!permission.isAuth) {
       throw Exception('Permission refusée');
     }
-    
+
     // Récupérer toutes les photos
     final albums = await PhotoManager.getAssetPathList(
       type: RequestType.image,
     );
-    
+
     if (albums.isEmpty) return;
-    
+
     final recentAlbum = albums.first;
     final photos = await recentAlbum.getAssetListRange(
       start: 0,
       end: 10000, // Maximum 10k photos
     );
-    
+
     _allPhotos.clear();
-    
+
     // Analyser chaque photo (en parallèle par batch de 10)
     for (int i = 0; i < photos.length; i += 10) {
       final batch = photos.skip(i).take(10).toList();
@@ -47,34 +48,36 @@ class PhotoCleanerService {
       _allPhotos.addAll(results.whereType<PhotoResult>());
     }
   }
-  
+
   Future<PhotoResult?> _analyzePhoto(AssetEntity asset) async {
     try {
       final file = await asset.file;
       if (file == null) return null;
-      
+
       // Analyser la photo
       final score = await _analyzer.analyzePhoto(file, asset.createDateTime);
       final hash = await _analyzer.calculateHash(file);
       final pHash = await _analyzer.calculatePerceptualHash(file);
-      
+
       return PhotoResult(asset, score, hash, pHash);
     } catch (e) {
       // Gérer l'erreur silencieusement
       return null;
     }
   }
-  
+
   // SÉLECTIONNER LES 9 PHOTOS À SUPPRIMER
-  Future<List<PhotoResult>> selectPhotosToDelete() async {
-    List<PhotoResult> candidates = List.from(_allPhotos);
-    
+  Future<List<PhotoResult>> selectPhotosToDelete({List<String> excludedIds = const []}) async {
+    List<PhotoResult> candidates = _allPhotos
+        .where((p) => !excludedIds.contains(p.asset.id) && !_seenPhotoIds.contains(p.asset.id))
+        .toList();
+
     // 1. MARQUER LES DOUBLONS EXACTS (hash MD5 identique)
     Map<String, List<PhotoResult>> hashGroups = {};
     for (var photo in candidates) {
       hashGroups.putIfAbsent(photo.hash, () => []).add(photo);
     }
-    
+
     for (var group in hashGroups.values) {
       if (group.length > 1) {
         // Garder la première, marquer les autres comme doublons
@@ -88,7 +91,7 @@ class PhotoCleanerService {
         }
       }
     }
-    
+
     // 2. DÉTECTER LES PHOTOS SIMILAIRES (pHash proche)
     for (int i = 0; i < candidates.length; i++) {
       for (int j = i + 1; j < candidates.length; j++) {
@@ -96,7 +99,7 @@ class PhotoCleanerService {
           candidates[i].perceptualHash,
           candidates[j].perceptualHash,
         );
-        
+
         // Si très similaires (distance < 5 bits)
         if (distance < 5) {
           // Augmenter le score de celle qui a déjà le score le plus élevé
@@ -118,18 +121,22 @@ class PhotoCleanerService {
         }
       }
     }
-    
+
     // 3. TRIER PAR SCORE ET RETOURNER LES 9 PIRES
     candidates.sort((a, b) => b.score.compareTo(a.score));
-    return candidates.take(9).toList();
+    final selected = candidates.take(9).toList();
+    for (var photo in selected) {
+      _seenPhotoIds.add(photo.asset.id);
+    }
+    return selected;
   }
-  
+
   // SUPPRIMER LES PHOTOS SÉLECTIONNÉES
   Future<void> deletePhotos(List<PhotoResult> photos) async {
     final ids = photos.map((p) => p.asset.id).toList();
     await PhotoManager.editor.deleteWithIds(ids);
   }
-  
+
   // OBTENIR L'ESPACE DE STOCKAGE
   Future<StorageInfo> getStorageInfo() async {
     final double? total = await DiskSpace.getTotalDiskSpace;
@@ -139,7 +146,7 @@ class PhotoCleanerService {
       return StorageInfo(totalSpace: 0, usedSpace: 0);
     }
 
-    final int totalSpace = total.toInt() * 1024 * 1024; 
+    final int totalSpace = total.toInt() * 1024 * 1024;
     final int usedSpace = (total - free).toInt() * 1024 * 1024;
 
     return StorageInfo(
@@ -152,9 +159,9 @@ class PhotoCleanerService {
 class StorageInfo {
   final int totalSpace;
   final int usedSpace;
-  
+
   StorageInfo({required this.totalSpace, required this.usedSpace});
-  
+
   double get usedPercentage => (usedSpace / totalSpace) * 100;
   String get usedSpaceGB => '${(usedSpace / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   String get totalSpaceGB => '${(totalSpace / (1024 * 1024 * 1024)).toStringAsFixed(0)} GB';

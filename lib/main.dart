@@ -1,11 +1,13 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'photo_cleaner_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'permission_screen.dart';
 import 'full_screen_image_view.dart';
+import 'dart:math' as math;
 
 void main() {
   runApp(const MyApp());
@@ -105,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   
   StorageInfo? _storageInfo;
   List<PhotoResult> _selectedPhotos = [];
+  final Set<String> _ignoredPhotos = {};
   bool _isLoading = false;
   bool _hasScanned = false;
 
@@ -145,6 +148,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() {
       _isLoading = true;
       _selectedPhotos = [];
+      _ignoredPhotos.clear();
     });
     _fadeController.reset();
     
@@ -177,11 +181,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _isLoading = true);
     
     try {
-      await _service.deletePhotos(_selectedPhotos);
+      final photosToDelete = _selectedPhotos
+          .where((p) => !_ignoredPhotos.contains(p.asset.id))
+          .toList();
+      
+      await _service.deletePhotos(photosToDelete);
       
       if (mounted) {
         setState(() {
           _selectedPhotos = [];
+          _ignoredPhotos.clear();
           _isLoading = false;
         });
       }
@@ -203,6 +212,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
   
+  void _toggleIgnoredPhoto(String id) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      if (_ignoredPhotos.contains(id)) {
+        _ignoredPhotos.remove(id);
+      } else {
+        _ignoredPhotos.add(id);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -252,7 +272,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               itemCount: _selectedPhotos.length,
                               itemBuilder: (context, index) {
                                 final photo = _selectedPhotos[index];
-                                return PhotoCard(photo: photo);
+                                return PhotoCard(
+                                  photo: photo,
+                                  isIgnored: _ignoredPhotos.contains(photo.asset.id),
+                                  onLongPress: () => _toggleIgnoredPhoto(photo.asset.id),
+                                );
                               },
                             ),
                           ),
@@ -329,9 +353,70 @@ class StorageIndicator extends StatelessWidget {
   }
 }
 
-class PhotoCard extends StatelessWidget {
+class PhotoCard extends StatefulWidget {
   final PhotoResult photo;
-  const PhotoCard({super.key, required this.photo});
+  final bool isIgnored;
+  final VoidCallback onLongPress;
+
+  const PhotoCard({
+    super.key,
+    required this.photo,
+    required this.isIgnored,
+    required this.onLongPress,
+  });
+
+  @override
+  State<PhotoCard> createState() => _PhotoCardState();
+}
+
+class _PhotoCardState extends State<PhotoCard> with SingleTickerProviderStateMixin {
+  late AnimationController _swayController;
+  late Animation<double> _swayAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _swayController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+
+    _swayAnimation = Tween<double>(begin: -0.02, end: 0.02).animate(
+      CurvedAnimation(
+        parent: _swayController,
+        curve: Curves.easeInOut,
+      ),
+    )..addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _swayController.reverse();
+      } else if (status == AnimationStatus.dismissed) {
+        _swayController.forward();
+      }
+    });
+
+    if (widget.isIgnored) {
+      _swayController.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PhotoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isIgnored != oldWidget.isIgnored) {
+      if (widget.isIgnored) {
+        _swayController.forward();
+      } else {
+        _swayController.stop();
+        _swayController.reset();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _swayController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -340,40 +425,56 @@ class PhotoCard extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FullScreenImageView(asset: photo.asset),
+            builder: (context) => FullScreenImageView(asset: widget.photo.asset),
           ),
         );
       },
-      child: Card(
-        elevation: 8,
-        shadowColor: Colors.black.withOpacity(0.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            FutureBuilder(
-              future: photo.asset.thumbnailDataWithSize(const ThumbnailSize(300, 300)),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return Image.memory(snapshot.data!, fit: BoxFit.cover);
-                }
-                return const Center(child: CircularProgressIndicator());
-              },
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(20),
+      onLongPress: widget.onLongPress,
+      child: AnimatedBuilder(
+        animation: _swayAnimation,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: widget.isIgnored ? _swayAnimation.value : 0,
+            child: child,
+          );
+        },
+        child: Card(
+          elevation: 8,
+          shadowColor: Colors.black.withOpacity(0.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  widget.isIgnored ? Colors.grey : Colors.transparent,
+                  BlendMode.saturation,
                 ),
-                child: Text('${photo.score.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: FutureBuilder(
+                  future: widget.photo.asset.thumbnailDataWithSize(const ThumbnailSize(300, 300)),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                    }
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('${widget.photo.score.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
