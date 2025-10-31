@@ -1,6 +1,6 @@
 
 import 'dart:io';
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:image/image.dart' as img;
 import 'package:crypto/crypto.dart';
 
@@ -87,7 +87,7 @@ class PhotoAnalysisResult {
     score += (1.0 - aestheticScore - 0.5) * 40;
 
     // Normalize score to be roughly within 0-100 for easier display.
-    return max(0, min(100, score));
+    return math.max(0, math.min(100, score));
   }
 }
 
@@ -175,7 +175,7 @@ class PhotoAnalyzer {
     // Low variance = weak edges = blur.
     final pixels = laplace.getBytes(order: img.ChannelOrder.red);
     double mean = pixels.reduce((a, b) => a + b) / pixels.length;
-    double variance = pixels.map((p) => pow(p - mean, 2)).reduce((a, b) => a + b) / pixels.length;
+    double variance = pixels.map((p) => math.pow(p - mean, 2)).reduce((a, b) => a + b) / pixels.length;
     return variance;
   }
 
@@ -201,7 +201,7 @@ class PhotoAnalyzer {
     for (int count in histogram) {
       if (count > 0) {
         double probability = count / totalPixels;
-        entropy -= probability * log2(probability);
+        entropy -= probability * (math.log(probability) / math.log(2)); // Corrected log2 calculation
       }
     }
 

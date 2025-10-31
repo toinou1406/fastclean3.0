@@ -164,6 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _fadeController.reset();
     
     try {
+      // The first scan can be slow, subsequent scans can be faster if we cache results.
       if (!_hasScanned) {
         await _service.scanPhotos();
         if (mounted) setState(() => _hasScanned = true);
@@ -172,24 +173,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final photos = await _service.selectPhotosToDelete();
       
       if (mounted) {
+        // Handle case where no photos are returned
+        if (photos.isEmpty && _hasScanned) {
+             ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No deletable photos found!')),
+            );
+        }
         setState(() {
           _selectedPhotos = photos;
           _isLoading = false;
         });
-        _fadeController.forward();
+        if (photos.isNotEmpty) {
+            _fadeController.forward();
+        }
       }
     } catch (e, s) {
         if (mounted) {
-        setState(() => _isLoading = false);
-        developer.log(
-            'Error during photo sorting',
-            name: 'photo_cleaner.error',
-            error: e,
-            stackTrace: s,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('An error occurred: ${e.toString()}')),
-        );
+            setState(() => _isLoading = false);
+            developer.log(
+                'Error during photo sorting',
+                name: 'photo_cleaner.error',
+                error: e,
+                stackTrace: s,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('An error occurred: ${e.toString()}')),
+            );
         }
     }
   }
@@ -487,7 +496,8 @@ class _PhotoCardState extends State<PhotoCard> with SingleTickerProviderStateMix
                     color: Colors.black.withAlpha(153),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text('${widget.photo.score.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  // Explicitly use the finalScore from the new analysis object
+                  child: Text('${widget.photo.analysis.finalScore.toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
