@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -177,13 +178,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
         _fadeController.forward();
       }
-    } catch (e) {
-      if (mounted) {
+    } catch (e, s) {
+        if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+        developer.log(
+            'Error during photo sorting',
+            name: 'photo_cleaner.error',
+            error: e,
+            stackTrace: s,
         );
-      }
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('An error occurred: ${e.toString()}')),
+        );
+        }
     }
   }
   

@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -32,27 +31,24 @@ class AnalysisResult {
 /// This prevents the UI from freezing during heavy computation.
 Future<AnalysisResult?> analyzePhotoInIsolate(AnalysisInput input) async {
   final analyzer = PhotoAnalyzer();
-  try {
-    final AssetEntity? asset = await AssetEntity.fromId(input.assetId);
-    if (asset == null) return null;
+  // Note: The try-catch block is removed here. The 'compute' function will
+  // automatically propagate any exception to the Future on the main thread.
+  final AssetEntity? asset = await AssetEntity.fromId(input.assetId);
+  if (asset == null) return null;
 
-    final File? file = await asset.file;
-    if (file == null) return null;
+  final File? file = await asset.file;
+  if (file == null) return null;
 
-    final score = await analyzer.analyzePhoto(file, asset.createDateTime);
-    final hash = await analyzer.calculateHash(file);
-    final pHash = await analyzer.calculatePerceptualHash(file);
+  final score = await analyzer.analyzePhoto(file, asset.createDateTime);
+  final hash = await analyzer.calculateHash(file);
+  final pHash = await analyzer.calculatePerceptualHash(file);
 
-    return AnalysisResult(
-      id: asset.id,
-      score: score,
-      hash: hash,
-      perceptualHash: pHash,
-    );
-  } catch (e) {
-    // Silently ignore assets that can't be processed.
-    return null;
-  }
+  return AnalysisResult(
+    id: asset.id,
+    score: score,
+    hash: hash,
+    perceptualHash: pHash,
+  );
 }
 
 // --- Main Service ---
@@ -211,4 +207,3 @@ class StorageInfo {
   String get usedSpaceGB => (usedSpace / 1073741824).toStringAsFixed(1);
   String get totalSpaceGB => (totalSpace / 1073741824).toStringAsFixed(0);
 }
-
